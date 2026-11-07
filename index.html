@@ -64,6 +64,22 @@
 
   .empty { text-align: center; color: var(--muted); padding: 60px 0; display: none; }
 
+  /* banners */
+  .banners { display: none; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
+    padding: 4px 16px 14px; scrollbar-width: none; }
+  .banners::-webkit-scrollbar { display: none; }
+  .banner { flex: none; width: 86%; max-width: 420px; aspect-ratio: 16 / 9; border-radius: 16px;
+    background-size: cover; background-position: center; background-color: var(--card);
+    position: relative; overflow: hidden; scroll-snap-align: center; cursor: pointer;
+    border: 1px solid #172131; }
+  .banner::after { content: ""; position: absolute; inset: 0;
+    background: linear-gradient(transparent 40%, rgba(0,0,0,.88)); }
+  .banner .bt { position: absolute; left: 14px; right: 14px; bottom: 12px; z-index: 1; }
+  .banner .bt b { display: block; font-size: 17px; line-height: 1.2; }
+  .banner .bt span { font-size: 12px; color: var(--gold-2); }
+  .sbanner { display: none; aspect-ratio: 16 / 9; margin: 0 16px 12px; border-radius: 12px;
+    background-size: cover; background-position: center; }
+
   /* detail sheet */
   .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); opacity: 0; pointer-events: none;
     transition: opacity .2s; z-index: 20; }
@@ -100,6 +116,8 @@
   <div class="chips" id="chips"></div>
 </header>
 
+<div class="banners" id="banners"></div>
+
 <main>
   <div class="grid" id="grid"></div>
   <div class="empty" id="empty">Hech narsa topilmadi</div>
@@ -108,6 +126,7 @@
 <div class="overlay" id="overlay"></div>
 <div class="sheet" id="sheet">
   <div class="grab"></div>
+  <div class="sbanner" id="sBanner"></div>
   <div class="top">
     <div class="sp" id="sPoster"></div>
     <div>
@@ -120,21 +139,12 @@
   <button class="cta sec" id="close">Yopish</button>
 </div>
 
+<script src="movies.js"></script>
 <script>
 // ============ SOZLAMALAR ============
 const BOT_USERNAME = "KinoOlamPlus_bot";   // @ belgisiz
 
-// Kinolarni shu yerda tahrirlang.
-// code  — botdagi kino kodi (bot /start kino_KOD ni qabul qilishi kerak)
-// poster — rasm havolasi (https://...) yoki "" bo'lsa rangli fon ko'rsatiladi
-const MOVIES = [
-  { code: "1001", title: "Yo'l-yo'l pijamali bola", year: 2008, genre: ["Drama"],    rating: 8.1, poster: "", desc: "Film fashistlar konslageri komandantining oʻgʻli Bruno va simtoʻsiq ortidagi yahudiy bola Shmuel oʻrtasidagi begunoh doʻstlik haqida hikoya qiladi. Urush dahshatlarini tushunmaydigan Bruno doʻstiga yordam berish uchun yashirincha lager ichiga kiradi. Yakunda ikki bola fojiali tarzda gaz kamerasida fashizm qurboniga aylanadi. Film tomoshabinga urushning fojiasi va odamlar shafqatsizligini bolalar nigohi orqali juda ta'sirli ochib beradi." },
-  { code: "102", title: "Namuna kino 2", year: 2023, genre: ["Komediya"],             rating: 7.4, poster: "", desc: "Bu namuna matni. Kino haqida qisqacha ma'lumotni shu yerga yozing." },
-  { code: "103", title: "Namuna kino 3", year: 2025, genre: ["Fantastika", "Jangari"], rating: 8.6, poster: "", desc: "Bu namuna matni. Kino haqida qisqacha ma'lumotni shu yerga yozing." },
-  { code: "104", title: "Namuna kino 4", year: 2022, genre: ["Drama", "Melodrama"],   rating: 7.9, poster: "", desc: "Bu namuna matni. Kino haqida qisqacha ma'lumotni shu yerga yozing." },
-  { code: "105", title: "Namuna kino 5", year: 2024, genre: ["Qo'rqinchli"],          rating: 6.8, poster: "", desc: "Bu namuna matni. Kino haqida qisqacha ma'lumotni shu yerga yozing." },
-  { code: "106", title: "Namuna kino 6", year: 2021, genre: ["Multfilm"],             rating: 8.0, poster: "", desc: "Bu namuna matni. Kino haqida qisqacha ma'lumotni shu yerga yozing." },
-];
+// Kinolar ro'yxati movies.js faylida turadi.
 // ====================================
 
 const tg = window.Telegram && window.Telegram.WebApp;
@@ -154,6 +164,7 @@ const GRADS = [
   "linear-gradient(160deg,#9d0208,#370617)", "linear-gradient(160deg,#006466,#0b2a2b)",
   "linear-gradient(160deg,#7f5539,#2b1d12)", "linear-gradient(160deg,#3a5a40,#14221a)",
 ];
+const imgUrl = (u) => `url("${u}")`;
 const bgFor = (m, i) => m.poster ? `url("${m.poster}")` : GRADS[i % GRADS.length];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -189,8 +200,24 @@ grid.addEventListener("click", (e) => {
   openSheet(MOVIES[+c.dataset.i], +c.dataset.i);
 });
 
+function renderBanners() {
+  const feat = MOVIES.map((m, i) => [m, i]).filter(([m]) => m.banner);
+  const el = $("banners");
+  if (!feat.length) { el.style.display = "none"; return; }
+  el.style.display = "flex";
+  el.innerHTML = feat.map(([m, i]) => `<div class="banner" data-i="${i}" style="background-image:${imgUrl(m.banner)}">
+    <div class="bt"><b>${esc(m.title)}</b><span>★ ${m.rating} · ${m.year} · ${esc(m.genre[0])}</span></div></div>`).join("");
+}
+$("banners").addEventListener("click", (e) => {
+  const c = e.target.closest(".banner"); if (!c) return;
+  openSheet(MOVIES[+c.dataset.i], +c.dataset.i);
+});
+
 function openSheet(m, i) {
   current = m;
+  const sb = $("sBanner");
+  if (m.banner) { sb.style.display = "block"; sb.style.backgroundImage = imgUrl(m.banner); }
+  else { sb.style.display = "none"; }
   $("sPoster").style.backgroundImage = bgFor(m, i);
   $("sTitle").textContent = m.title;
   $("sTags").innerHTML = [m.year, ...m.genre, "★ " + m.rating, "Kod: " + m.code]
@@ -215,6 +242,7 @@ $("watch").addEventListener("click", () => {
   if (tg && tg.openTelegramLink) tg.openTelegramLink(url); else window.open(url, "_blank");
 });
 
+renderBanners();
 render();
 </script>
 </body>
