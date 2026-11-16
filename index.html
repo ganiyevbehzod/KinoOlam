@@ -80,6 +80,22 @@
   .sbanner { display: none; aspect-ratio: 16 / 9; margin: 0 16px 12px; border-radius: 12px;
     background-size: cover; background-position: center; }
 
+  /* haftalik top */
+  .week { display: none; margin: 4px 0 18px; }
+  .week h3 { font-size: 16px; margin: 0 0 10px; }
+  .wlist { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .wlist::-webkit-scrollbar { display: none; }
+  .wcard { flex: none; width: 112px; cursor: pointer; }
+  .wcard:active { transform: scale(.97); }
+  .wp { aspect-ratio: 2 / 3; border-radius: 12px; background-size: cover; background-position: center;
+    position: relative; border: 1px solid #172131; }
+  .rank { position: absolute; left: 6px; bottom: 6px; min-width: 26px; height: 26px; padding: 0 6px;
+    border-radius: 13px; background: var(--gold); color: #1a1300; font-weight: 800; font-size: 14px;
+    display: flex; align-items: center; justify-content: center; }
+  .wt { font-size: 13px; font-weight: 600; margin-top: 6px; line-height: 1.2;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .ws { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
   /* detail sheet */
   .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); opacity: 0; pointer-events: none;
     transition: opacity .2s; z-index: 20; }
@@ -119,6 +135,7 @@
 <div class="banners" id="banners"></div>
 
 <main>
+  <section class="week" id="week"></section>
   <div class="grid" id="grid"></div>
   <div class="empty" id="empty">Hech narsa topilmadi</div>
 </main>
@@ -143,6 +160,8 @@
 <script>
 // ============ SOZLAMALAR ============
 const BOT_USERNAME = "KinoOlamPlus_bot";   // @ belgisiz
+// Botning (Cloudflare Worker) statistika manzili: reyting va haftalik top shu yerdan olinadi
+const API_URL = "https://plain-art-5afe.sincerelybehzod.workers.dev/api/stats";
 
 // Kinolar ro'yxati movies.js faylida turadi.
 // ====================================
@@ -158,6 +177,14 @@ const $ = (id) => document.getElementById(id);
 const grid = $("grid"), chipsEl = $("chips"), qEl = $("q");
 let activeGenre = "Hammasi";
 let current = null;
+let STATS = { ratings: {}, week: [] };
+
+// Obunachilar bergan baho bo'lsa o'shani, bo'lmasa movies.js dagi raqamni ko'rsatadi
+const ratingOf = (m) => {
+  const r = STATS.ratings[m.code];
+  return r && r.votes > 0 ? { avg: r.avg, votes: r.votes } : { avg: m.rating, votes: 0 };
+};
+const fmt = (n) => (typeof n === "number" ? n.toFixed(1) : n);
 
 const GRADS = [
   "linear-gradient(160deg,#1d3557,#0b132b)", "linear-gradient(160deg,#5a189a,#10002b)",
@@ -188,12 +215,49 @@ function render() {
     return `<div class="movie" data-i="${i}">
       <div class="poster" style="background-image:${bgFor(m, i)}">
         ${m.poster ? "" : `<div class="ph">${esc(m.title)}</div>`}
-        <span class="badge">★ ${m.rating}</span><span class="code">#${esc(m.code)}</span>
+        <span class="badge">★ ${fmt(ratingOf(m).avg)}</span><span class="code">#${esc(m.code)}</span>
       </div>
       <div class="meta"><div class="t">${esc(m.title)}</div>
       <div class="s">${m.year} · ${esc(m.genre[0])}</div></div></div>`;
   }).join("");
   $("empty").style.display = list.length ? "none" : "block";
+  renderWeek();
+}
+
+function renderWeek() {
+  const el = $("week");
+  if (qEl.value.trim() || activeGenre !== "Hammasi") { el.style.display = "none"; return; }
+  const items = STATS.week
+    .map((w) => [MOVIES.findIndex((m) => String(m.code) === String(w.code)), w])
+    .filter(([i]) => i >= 0)
+    .slice(0, 10);
+  if (!items.length) { el.style.display = "none"; return; }
+  el.style.display = "block";
+  el.innerHTML = `<h3>🔥 Haftaning eng ko'p ko'rilgan kinolari</h3><div class="wlist">` +
+    items.map(([i, w], n) => {
+      const m = MOVIES[i];
+      return `<div class="wcard" data-i="${i}">
+        <div class="wp" style="background-image:${bgFor(m, i)}"><span class="rank">${n + 1}</span></div>
+        <div class="wt">${esc(m.title)}</div>
+        <div class="ws">👁 ${w.views} · ★ ${fmt(ratingOf(m).avg)}</div></div>`;
+    }).join("") + `</div>`;
+}
+$("week").addEventListener("click", (e) => {
+  const c = e.target.closest(".wcard"); if (!c) return;
+  openSheet(MOVIES[+c.dataset.i], +c.dataset.i);
+});
+
+async function loadStats() {
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 8000);
+    const res = await fetch(API_URL, { signal: ctl.signal });
+    clearTimeout(t);
+    if (!res.ok) return;
+    const d = await res.json();
+    STATS = { ratings: d.ratings || {}, week: d.week || [] };
+    render();
+  } catch (e) { /* internet yoki bot ishlamasa, eski raqamlar qoladi */ }
 }
 grid.addEventListener("click", (e) => {
   const c = e.target.closest(".movie"); if (!c) return;
@@ -219,7 +283,8 @@ function openSheet(m, i) {
   sb.style.display = "none"; // banner faqat bosh sahifadagi slayderda ko'rinadi
   $("sPoster").style.backgroundImage = bgFor(m, i);
   $("sTitle").textContent = m.title;
-  $("sTags").innerHTML = [m.year, ...m.genre, "★ " + m.rating, "Kod: " + m.code]
+  const rt = ratingOf(m);
+  $("sTags").innerHTML = [m.year, ...m.genre, "★ " + fmt(rt.avg) + (rt.votes ? " (" + rt.votes + " ovoz)" : ""), "Kod: " + m.code]
     .map((t) => `<span class="tag">${esc(t)}</span>`).join("");
   $("sDesc").textContent = m.desc;
   $("overlay").classList.add("open");
@@ -242,6 +307,7 @@ $("watch").addEventListener("click", () => {
 });
 
 render();
+loadStats();
 </script>
 </body>
 </html>
