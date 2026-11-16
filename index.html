@@ -164,8 +164,8 @@ const GRADS = [
   "linear-gradient(160deg,#9d0208,#370617)", "linear-gradient(160deg,#006466,#0b2a2b)",
   "linear-gradient(160deg,#7f5539,#2b1d12)", "linear-gradient(160deg,#3a5a40,#14221a)",
 ];
-const imgUrl = (u) => `url("${u}")`;
-const bgFor = (m, i) => m.poster ? `url("${m.poster}")` : GRADS[i % GRADS.length];
+const imgUrl = (u) => `url('${u}')`;
+const bgFor = (m, i) => m.poster ? imgUrl(m.poster) : GRADS[i % GRADS.length];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 const genres = ["Hammasi", ...Array.from(new Set(MOVIES.flatMap((m) => m.genre)))];
@@ -216,8 +216,7 @@ $("banners").addEventListener("click", (e) => {
 function openSheet(m, i) {
   current = m;
   const sb = $("sBanner");
-  if (m.banner) { sb.style.display = "block"; sb.style.backgroundImage = imgUrl(m.banner); }
-  else { sb.style.display = "none"; }
+  sb.style.display = "none"; // banner faqat bosh sahifadagi slayderda ko'rinadi
   $("sPoster").style.backgroundImage = bgFor(m, i);
   $("sTitle").textContent = m.title;
   $("sTags").innerHTML = [m.year, ...m.genre, "★ " + m.rating, "Kod: " + m.code]
@@ -242,7 +241,6 @@ $("watch").addEventListener("click", () => {
   if (tg && tg.openTelegramLink) tg.openTelegramLink(url); else window.open(url, "_blank");
 });
 
-renderBanners();
 render();
 </script>
 </body>
